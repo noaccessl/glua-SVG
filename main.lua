@@ -47,6 +47,16 @@ function svg.Unload( id )
 
 end
 
+local function SetIfEmpty( str, what, pos, needed )
+
+	if not string.find( str, what ) then
+		return string.sub( str, 1, pos ) .. needed .. string.sub( str, pos + string.len( needed ) )
+	end
+
+	return str
+
+end
+
 --[[---------------------------------------------------------------------------
 	Generate
 ---------------------------------------------------------------------------]]
@@ -57,15 +67,18 @@ function svg.Generate( id, w, h, strSVG )
 
 	assert( isstring( strSVG ), 'invalid svg' )
 
-	local open = string.find( strSVG, '<svg%s' )
+	local open = string.find( strSVG, '<svg%s(.-)>' )
 	local _, close = string.find( strSVG, '</svg>%s*$' )
 
 	assert( ( open and close ) ~= nil, 'invalid svg' )
 
 	strSVG = string.sub( strSVG, open, close )
 
-	strSVG = string.gsub( strSVG, 'width="[^"]+"', 'width="auto"' )
-	strSVG = string.gsub( strSVG, 'height="[^"]+"', 'height="auto"' )
+	strSVG = SetIfEmpty( strSVG, 'width="(.-)"', 5, 'width="" ' )
+	strSVG = SetIfEmpty( strSVG, 'height="(.-)"', 5, 'height="" ' )
+
+	strSVG = string.gsub( strSVG, 'width="(.-)"', 'width="' .. w .. '"' )
+	strSVG = string.gsub( strSVG, 'height="(.-)"', 'height="' .. h .. '"' )
 
 	local handle = svg.cache[id]
 
@@ -104,19 +117,14 @@ function svg.LoadURL( id, w, h, url )
 
 	assert( string.GetExtensionFromFilename( url ) == 'svg', 'invalid svg' )
 
-	local handle = svg.cache[id]
+	http.Fetch( url, function( strSVG )
+		svg.Generate( id, w, h, strSVG )
+	end, function( err )
 
-	if not handle then
+		error( err )
+		svg.Unload( id )
 
-		handle = vgui.Create( 'DHTML' )
-		handle:SetVisible( false )
-
-		svg.cache[id] = handle
-
-	end
-
-	handle:SetSize( w, h )
-	handle:OpenURL( url )
+	end )
 
 	return function( x, y, color )
 		svg.Draw( id, x, y, color )
