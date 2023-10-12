@@ -94,8 +94,8 @@ function svg.Generate( id, w, h, strSVG )
 	handle:SetSize( w, h )
 	handle:SetHTML( SVGTemplate:format( strSVG ) )
 
-	return function( x, y, color )
-		svg.Draw( id, x, y, color )
+	return function( x, y, color, r, g, b, a )
+		svg.Draw( id, x, y, color, r, g, b, a )
 	end
 
 end
@@ -126,8 +126,8 @@ function svg.LoadURL( id, w, h, url )
 
 	end )
 
-	return function( x, y, color )
-		svg.Draw( id, x, y, color )
+	return function( x, y, color, r, g, b, a )
+		svg.Draw( id, x, y, color, r, g, b, a )
 	end
 
 end
@@ -135,6 +135,13 @@ end
 
 --[[---------------------------------------------------------------------------
 	Draw
+
+		@color:
+			If set to true, it will create material that supports color.
+			It's not that expensive, but if you don't need color support, you can simply omit this argument.
+
+		@r, g, b, a:
+			It works the same as in surface.SetDrawColor
 ---------------------------------------------------------------------------]]
 do
 
@@ -150,7 +157,33 @@ do
 	local MaterialWidth = _R.IMaterial.Width
 	local MaterialHeight = _R.IMaterial.Height
 
-	function svg.Draw( id, x, y, color )
+	local MaterialName = _R.IMaterial.GetName
+
+	local CreateMaterial = CreateMaterial
+
+	local format = string.format
+	local match = string.match
+
+	local MaterialAttributes = {
+
+		[ '$translucent' ] = 1;
+		[ '$vertexalpha' ] = 1;
+		[ '$vertexcolor' ] = 1
+
+	}
+
+	local function SetupMaterial( id, name, w, h )
+
+		MaterialAttributes[ '$basetexture' ] = name
+
+		local UniqueName = format( '%s,%s,%d,%d', id, match( name, '%d+' ), w, h )
+		return CreateMaterial( UniqueName, 'UnlitGeneric', MaterialAttributes )
+
+	end
+
+	local IsColor = IsColor
+
+	function svg.Draw( id, x, y, color, r, g, b, a )
 
 		local handle = svg.cache[id]
 
@@ -166,14 +199,25 @@ do
 			return
 		end
 
-		if color then
-			SetDrawColor( color )
-		else
-			SetDrawColor( 255, 255, 255 )
+		local w = MaterialWidth( mat )
+		local h = MaterialHeight( mat )
+
+		SetDrawColor( 255, 255, 255 )
+
+		if color == true then
+
+			mat = SetupMaterial( id, MaterialName( mat ), w, h )
+
+			if IsColor( r ) then
+				SetDrawColor( r.r, r.g, r.b, r.a )
+			elseif r then
+				SetDrawColor( r, g, b, a )
+			end
+
 		end
 
 		SetMaterial( mat )
-		DrawTexturedRect( x, y, MaterialWidth( mat ), MaterialHeight( mat ) )
+		DrawTexturedRect( x, y, w, h )
 
 	end
 
