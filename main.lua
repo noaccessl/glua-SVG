@@ -62,9 +62,14 @@ local SVG_TEMPLATE = [[
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	Initialize
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-svg = svg or {}
+svg = svg or {
+
+	GamemodeLoaded = false
+
+}
 
 local Registry = {}
+local Queue = util.Stack()
 
 
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -95,6 +100,40 @@ local function CreateOrUpdateSVGHandle( id, w, h, strSVG )
 
 	pHandle:SetSize( w, h )
 	pHandle:SetHTML( Format( SVG_TEMPLATE, strSVG ) )
+
+end
+
+--[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+	NewQueuedSVG
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
+local CQueuedSVG = {
+
+	Constructor = function( self, id, w, h, strSVG )
+
+		self.ID = id
+		self.w = w
+		self.h = h
+		self.SVG = strSVG
+
+	end;
+
+	Unpack = function( self )
+
+		return self.ID, self.w, self.h, self.SVG
+
+	end
+
+}
+CQueuedSVG.__index = CQueuedSVG
+
+local function NewQueuedSVG( id, w, h, strSVG )
+
+	local pQueuedSVG = {}
+	setmetatable( pQueuedSVG, CQueuedSVG )
+
+	pQueuedSVG:Constructor( id, w, h, strSVG )
+
+	return pQueuedSVG
 
 end
 
@@ -130,7 +169,14 @@ function svg.Generate( id, w, h, strSVG )
 	--
 	-- Generate
 	--
-	CreateOrUpdateSVGHandle( id, w, h, strSVG )
+	if ( svg.GamemodeLoaded ) then
+		CreateOrUpdateSVGHandle( id, w, h, strSVG )
+	else
+
+		local pQueuedSVG = NewQueuedSVG( id, w, h, strSVG )
+		Queue:Push( pQueuedSVG )
+
+	end
 
 	return function( ... )
 
@@ -358,3 +404,26 @@ function svg.Unload( id )
 	end
 
 end
+
+
+--[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+	Queue for pre-generating SVGs on startup
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
+hook.Add( 'OnGamemodeLoaded', 'PregenerateSVG', function()
+
+	svg.GamemodeLoaded = true
+
+	::ProcessQueue::
+
+		local pQueuedSVG = Queue:Pop()
+
+		CreateOrUpdateSVGHandle( pQueuedSVG:Unpack() )
+		pQueuedSVG = nil
+
+	if ( Queue:Size() > 0 ) then
+		goto ProcessQueue
+	end
+
+	Queue = nil
+
+end )
