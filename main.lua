@@ -413,6 +413,13 @@ hook.Add( 'OnGamemodeLoaded', 'PregenerateSVG', function()
 
 	svg.GamemodeLoaded = true
 
+	if ( Queue:Size() == 0 ) then
+
+		Queue = nil
+		return
+
+	end
+
 	::ProcessQueue::
 
 		local pQueuedSVG = Queue:Pop()
