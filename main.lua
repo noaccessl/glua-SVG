@@ -1,8 +1,9 @@
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	Prepare
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-local RemoveHandle = FindMetaTable( 'Panel' ).Remove
-
+--
+-- Globals
+--
 local Assert	= assert
 local isnumber	= isnumber
 local isstring	= isstring
@@ -13,14 +14,21 @@ local strgsub	= string.gsub
 
 local Format	= string.format
 
--- Helper function
-local SetIfEmpty do
+--
+-- Methods
+--
+local RemoveHandle = FindMetaTable( 'Panel' ).Remove
+
+--
+-- Utilities
+--
+local strfill do
 
 	local strlen = string.len
 
-	function SetIfEmpty( str, what, pos, needed )
+	function strfill( str, what, pos, needed )
 
-		if not strfind( str, what ) then
+		if ( not strfind( str, what ) ) then
 			return substrof( str, 1, pos ) .. needed .. substrof( str, pos + strlen( needed ) )
 		end
 
@@ -30,7 +38,9 @@ local SetIfEmpty do
 
 end
 
+--
 -- HTML wrap for SVGs
+--
 local SVG_TEMPLATE = [[
 	<html>
 		<head>
@@ -52,75 +62,29 @@ local SVG_TEMPLATE = [[
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	Initialize
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-svg = svg or {
+svg = svg or {}
 
-	Registry = {}
+local Registry = {}
 
-}
 
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-	PurgeAll
+	GetRegistry
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-function svg.PurgeAll()
+function svg.GetRegistry()
 
-	local Registry = svg.Registry
-
-	for id, pHandle in pairs( Registry ) do
-
-		RemoveHandle( pHandle )
-		Registry[ id ] = nil
-
-	end
+	return Registry
 
 end
 
---[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-	Unload
-–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-function svg.Unload( id )
-
-	local Registry = svg.Registry
-	local pHandle = Registry[ id ]
-
-	if pHandle then
-
-		RemoveHandle( pHandle )
-		Registry[ id ] = nil
-
-	end
-
-end
 
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-	Generate
+	CreateOrUpdateSVGHandle
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-function svg.Generate( id, w, h, strSVG )
+local function CreateOrUpdateSVGHandle( id, w, h, strSVG )
 
-	-- Pinch of asserts
-	Assert( isnumber( w ), 'invalid width' )
-	Assert( isnumber( h ), 'invalid height' )
-
-	Assert( isstring( strSVG ), 'invalid svg' )
-
-	local open		= strfind( strSVG, '<svg%s(.-)>' )
-	local _, close	= strfind( strSVG, '</svg>%s*$' )
-
-	Assert( ( open and close ) ~= nil, 'invalid svg' )
-
-	-- Corrections
-	strSVG = substrof( strSVG, open, close )
-
-	strSVG = SetIfEmpty( strSVG, 'width="(.-)"', 5, 'width="" ' )
-	strSVG = SetIfEmpty( strSVG, 'height="(.-)"', 5, 'height="" ' )
-
-	strSVG = strgsub( strSVG, 'width="(.-)"', 'width="' .. w .. '"' )
-	strSVG = strgsub( strSVG, 'height="(.-)"', 'height="' .. h .. '"' )
-
-	-- Cooking
-	local Registry = svg.Registry
 	local pHandle = Registry[ id ]
 
-	if not pHandle then
+	if ( not pHandle ) then
 
 		pHandle = vgui.Create( 'DHTML' )
 		pHandle:SetVisible( false )
@@ -131,6 +95,42 @@ function svg.Generate( id, w, h, strSVG )
 
 	pHandle:SetSize( w, h )
 	pHandle:SetHTML( Format( SVG_TEMPLATE, strSVG ) )
+
+end
+
+--[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+	Generate
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
+function svg.Generate( id, w, h, strSVG )
+
+	--
+	-- Pinch of assertions
+	--
+	Assert( isnumber( w ), 'invalid width' )
+	Assert( isnumber( h ), 'invalid height' )
+
+	Assert( isstring( strSVG ), 'invalid svg' )
+
+	local open		= strfind( strSVG, '<svg%s(.-)>' )
+	local _, close	= strfind( strSVG, '</svg>%s*$' )
+
+	Assert( ( open and close ) ~= nil, 'invalid svg' )
+
+	--
+	-- Adjust
+	--
+	strSVG = substrof( strSVG, open, close )
+
+	strSVG = strfill( strSVG, 'width="(.-)"', 5, 'width="" ' )
+	strSVG = strfill( strSVG, 'height="(.-)"', 5, 'height="" ' )
+
+	strSVG = strgsub( strSVG, 'width="(.-)"', 'width="' .. w .. '"' )
+	strSVG = strgsub( strSVG, 'height="(.-)"', 'height="' .. h .. '"' )
+
+	--
+	-- Generate
+	--
+	CreateOrUpdateSVGHandle( id, w, h, strSVG )
 
 	return function( ... )
 
@@ -164,6 +164,12 @@ function svg.AsyncLoad( id, w, h, path )
 
 	end )
 
+	return function( ... )
+
+		svg.Draw( id, ... )
+
+	end
+
 end
 
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -192,6 +198,7 @@ function svg.LoadURL( id, w, h, url )
 
 end
 
+
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	Draw
 
@@ -202,70 +209,98 @@ end
 	@r, g, b, a:
 		Same principle as with surface.SetDrawColor
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-do
+local Draw do
 
-	local PANEL				= FindMetaTable( 'Panel' )
-	local IMATERIAL			= FindMetaTable( 'IMaterial' )
+	--
+	-- Metatables
+	--
+	local PANEL		= FindMetaTable( 'Panel' )
+	local IMATERIAL	= FindMetaTable( 'IMaterial' )
 
+	--
+	-- Methods
+	--
 	local UpdateHTMLTexture	= PANEL.UpdateHTMLTexture
 	local GetHTMLMaterial	= PANEL.GetHTMLMaterial
 
+	local WidthOf	= IMATERIAL.Width
+	local HeightOf	= IMATERIAL.Height
+	local NameOf	= IMATERIAL.GetName
+
+	--
+	-- Utilities
+	--
+	local SetupMaterial do
+
+		local Attributes = {
+
+			[ '$translucent' ] = 1;
+			[ '$vertexalpha' ] = 1;
+			[ '$vertexcolor' ] = 1
+
+		}
+
+		local strmatch		 = string.match
+		local CreateMaterial = CreateMaterial
+
+		function SetupMaterial( id, name, w, h )
+
+			Attributes[ '$basetexture' ] = name
+
+			local UniqueName = Format( '%s_%s_%d_%d', id, strmatch( name, '%d+' ), w, h )
+
+			return CreateMaterial( UniqueName, 'UnlitGeneric', Attributes )
+
+		end
+
+	end
+
+	--
+	-- Globals
+	--
 	local SetDrawColor		= surface.SetDrawColor
 	local SetMaterial		= surface.SetMaterial
 	local DrawTexturedRect	= surface.DrawTexturedRect
 
-	local WidthOf			= IMATERIAL.Width
-	local HeightOf			= IMATERIAL.Height
-	local NameOf			= IMATERIAL.GetName
-
-	local CreateMaterial	= CreateMaterial
-
-	local strmatch			= string.match
-
-	local Attributes = {
-
-		[ '$translucent' ] = 1;
-		[ '$vertexalpha' ] = 1;
-		[ '$vertexcolor' ] = 1
-
-	}
-
-	local function SetupMaterial( id, name, w, h )
-
-		Attributes[ '$basetexture' ] = name
-
-		local UniqueName = Format( '%s_%s_%d_%d', id, strmatch( name, '%d+' ), w, h )
-		return CreateMaterial( UniqueName, 'UnlitGeneric', Attributes )
-
-	end
-
 	local IsColor = IsColor
 
-	function svg.Draw( id, x, y, color, r, g, b, a )
+	function Draw( id, x, y, color, r, g, b, a )
 
-		local pHandle = svg.Registry[ id ]
+		--
+		-- Retrieve Handle
+		--
+		local pHandle = Registry[ id ]
 
-		if not pHandle then
+		if ( not pHandle ) then
 			return
 		end
 
+		--
+		-- Prepare Material
+		--
 		UpdateHTMLTexture( pHandle )
 
 		local pMaterial = GetHTMLMaterial( pHandle )
 
-		if not pMaterial then
+		if ( not pMaterial ) then
 			return
 		end
 
 		local w = WidthOf( pMaterial )
 		local h = HeightOf( pMaterial )
 
-		if color == true then
+		--
+		-- Manage Color
+		--
+		if ( color == true ) then
 
 			pMaterial = SetupMaterial( id, NameOf( pMaterial ), w, h )
 
-			if IsColor( r ) then
-				SetDrawColor( r.r, r.g, r.b, r.a )
+			if ( IsColor( r ) ) then
+
+				color = r
+				SetDrawColor( color.r, color.g, color.b, color.a )
+
 			else
 				SetDrawColor( r, g, b, a )
 			end
@@ -274,8 +309,51 @@ do
 			SetDrawColor( 255, 255, 255 )
 		end
 
+		--
+		-- Draw
+		--
 		SetMaterial( pMaterial )
 		DrawTexturedRect( x, y, w, h )
+
+	end
+
+end
+
+function svg.Draw( id, x, y, color, r, g, b, a )
+
+	Draw( id, x, y, color, r, g, b, a )
+
+end
+
+
+--[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+	PurgeAll
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
+function svg.PurgeAll()
+
+	local Registry = Registry
+
+	for id, pHandle in pairs( Registry ) do
+
+		RemoveHandle( pHandle )
+		Registry[ id ] = nil
+
+	end
+
+end
+
+--[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+	Unload
+–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
+function svg.Unload( id )
+
+	local Registry = Registry
+	local pHandle = Registry[ id ]
+
+	if ( pHandle ) then
+
+		RemoveHandle( pHandle )
+		Registry[ id ] = nil
 
 	end
 

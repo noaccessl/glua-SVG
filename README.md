@@ -1,8 +1,6 @@
 # glua-SVG
 Allows you to load and render SVGs in GMod
 
-If you need to load SVG on startup, it is better to do it in [GM:OnGamemodeLoaded](https://wiki.facepunch.com/gmod/GM:OnGamemodeLoaded) hook due to how [vgui.Create](https://wiki.facepunch.com/gmod/vgui.Create) works.
-
 ### Example
 ![image](https://user-images.githubusercontent.com/54954576/273377886-c631becc-2c80-401c-bf18-1155794c96ac.png)
 ```lua
