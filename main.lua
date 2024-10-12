@@ -2,7 +2,12 @@
 	Prepare
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
 --
--- Globals
+-- Metamethods: Panel
+--
+local RemoveHandle = FindMetaTable( 'Panel' ).Remove
+
+--
+-- Globals, Utilities
 --
 local Assert	= assert
 local isnumber	= isnumber
@@ -14,14 +19,6 @@ local strgsub	= string.gsub
 
 local Format	= string.format
 
---
--- Methods
---
-local RemoveHandle = FindMetaTable( 'Panel' ).Remove
-
---
--- Utilities
---
 local strfill do
 
 	local strlen = string.len
@@ -71,7 +68,6 @@ svg = svg or {
 local Registry = {}
 local Queue = util.Stack()
 
-
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	GetRegistry
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
@@ -106,32 +102,34 @@ end
 --[[–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 	NewQueuedSVG
 –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––]]
-local CQueuedSVG = {
+local CQueuedSVG = {}
+do
 
-	Constructor = function( self, id, w, h, strSVG )
+	CQueuedSVG.__index = CQueuedSVG
+
+	function CQueuedSVG:Init( id, w, h, strSVG )
 
 		self.ID = id
 		self.w = w
 		self.h = h
 		self.SVG = strSVG
 
-	end;
+	end
 
-	Unpack = function( self )
+	function CQueuedSVG:Unpack()
 
 		return self.ID, self.w, self.h, self.SVG
 
 	end
 
-}
-CQueuedSVG.__index = CQueuedSVG
+end
 
 local function NewQueuedSVG( id, w, h, strSVG )
 
 	local pQueuedSVG = {}
 	setmetatable( pQueuedSVG, CQueuedSVG )
 
-	pQueuedSVG:Constructor( id, w, h, strSVG )
+	pQueuedSVG:Init( id, w, h, strSVG )
 
 	return pQueuedSVG
 
@@ -249,7 +247,7 @@ end
 	Draw
 
 	@color:
-		If set to true, it will create material with color support.
+		If set to true, it will create material with color support for SVG.
 		It's not that expensive and if you don't need color support just omit this argument.
 
 	@r, g, b, a:
@@ -260,25 +258,25 @@ local Draw do
 	--
 	-- Metatables
 	--
-	local PANEL		= FindMetaTable( 'Panel' )
-	local IMATERIAL	= FindMetaTable( 'IMaterial' )
+	local Panel		= FindMetaTable( 'Panel' )
+	local IMaterial	= FindMetaTable( 'IMaterial' )
 
 	--
-	-- Methods
+	-- Metamethods: Panel, IMaterial
 	--
-	local UpdateHTMLTexture	= PANEL.UpdateHTMLTexture
-	local GetHTMLMaterial	= PANEL.GetHTMLMaterial
+	local UpdateHTMLTexture	= Panel.UpdateHTMLTexture
+	local GetHTMLMaterial	= Panel.GetHTMLMaterial
 
-	local WidthOf	= IMATERIAL.Width
-	local HeightOf	= IMATERIAL.Height
-	local NameOf	= IMATERIAL.GetName
+	local WidthOf	= IMaterial.Width
+	local HeightOf	= IMaterial.Height
+	local NameOf	= IMaterial.GetName
 
 	--
-	-- Utilities
+	-- Utilities, Globals
 	--
 	local SetupMaterial do
 
-		local Attributes = {
+		local MatParameters_t = {
 
 			[ '$translucent' ] = 1;
 			[ '$vertexalpha' ] = 1;
@@ -291,19 +289,22 @@ local Draw do
 
 		function SetupMaterial( id, name, w, h )
 
-			Attributes[ '$basetexture' ] = name
+			MatParameters_t[ '$basetexture' ] = name
 
 			local UniqueName = Format( '%s_%s_%d_%d', id, strmatch( name, '%d+' ), w, h )
 
-			return CreateMaterial( UniqueName, 'UnlitGeneric', Attributes )
+			return CreateMaterial(
+
+				UniqueName,
+				'UnlitGeneric',
+				MatParameters_t
+
+			)
 
 		end
 
 	end
 
-	--
-	-- Globals
-	--
 	local SetDrawColor		= surface.SetDrawColor
 	local SetMaterial		= surface.SetMaterial
 	local DrawTexturedRect	= surface.DrawTexturedRect
@@ -313,7 +314,7 @@ local Draw do
 	function Draw( id, x, y, color, r, g, b, a )
 
 		--
-		-- Retrieve Handle
+		-- Retrieve the handle
 		--
 		local pHandle = Registry[ id ]
 
@@ -322,7 +323,7 @@ local Draw do
 		end
 
 		--
-		-- Prepare Material
+		-- Prepare the material
 		--
 		UpdateHTMLTexture( pHandle )
 
@@ -336,7 +337,7 @@ local Draw do
 		local h = HeightOf( pMaterial )
 
 		--
-		-- Manage Color
+		-- Manage the color
 		--
 		if ( color == true ) then
 
